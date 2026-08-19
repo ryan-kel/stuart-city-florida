@@ -29,6 +29,23 @@
   }
   #map { position: relative; min-height: 0; }
   .leaflet-container { height: 100%; width: 100%; font-family: 'Segoe UI', system-ui, sans-serif; background: #f3f5f7; }
+  .leaflet-container *:focus,
+  .leaflet-container *:focus-visible,
+  .leaflet-container .leaflet-interactive,
+  .leaflet-overlay-pane path {
+    outline: none !important;
+    box-shadow: none !important;
+  }
+  button,
+  .office-tab {
+    -webkit-tap-highlight-color: transparent;
+  }
+  button:focus,
+  button:focus-visible,
+  .office-tab:focus,
+  .office-tab:focus-visible {
+    outline: none;
+  }
 
   .panel-top {
     background: var(--navy);
@@ -185,7 +202,7 @@
   }
   .context { font-size: 12px; line-height: 1.55; color: var(--muted); margin-top: 8px; }
 
-  .precinct-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .precinct-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 12px; }
   .precinct-table th {
     font-family: 'Segoe UI', system-ui, sans-serif;
     font-size: 10px;
@@ -202,14 +219,17 @@
     border-bottom: 1px solid #f0f3f6;
     vertical-align: top;
   }
-  .precinct-table .num {
+  .precinct-table .pct-col { width: 2.2em; }
+  .precinct-table .leader-col { width: 7.2em; }
+  .precinct-table .margin-col {
+    width: 3.6em;
     font-family: 'Segoe UI', system-ui, sans-serif;
     font-variant-numeric: tabular-nums;
     text-align: right;
     white-space: nowrap;
   }
   .leader-cell {
-    display: inline-flex;
+    display: flex;
     align-items: center;
     gap: 6px;
     font-family: 'Segoe UI', system-ui, sans-serif;
@@ -354,10 +374,10 @@
       <table class="precinct-table">
         <thead>
           <tr>
-            <th>Pct</th>
+            <th class="pct-col">Pct</th>
             <th>Place</th>
-            <th class="num">Leader</th>
-            <th class="num">Margin</th>
+            <th class="leader-col">Leader</th>
+            <th class="margin-col">Margin</th>
           </tr>
         </thead>
         <tbody id="precinct-body"></tbody>
@@ -428,7 +448,7 @@ function precinctColor(slot, race) {
 }
 
 function initMap() {
-  map = L.map("map", { zoomControl: true, scrollWheelZoom: true });
+  map = L.map("map", { zoomControl: true, scrollWheelZoom: true, keyboard: false });
   map.createPane("labels");
   map.getPane("labels").style.zIndex = 650;
   map.getPane("labels").style.pointerEvents = "none";
@@ -461,8 +481,8 @@ function styleFeature(feature) {
     else opacity = 0.82;
   }
   return {
-    color: active ? "#B8860B" : "#ffffff",
-    weight: active ? 2.4 : 1.4,
+    color: active ? "#1B3F5E" : "#ffffff",
+    weight: active ? 2 : 1.4,
     fillColor: precinctColor(slot, race),
     fillOpacity: opacity,
   };
@@ -503,6 +523,18 @@ function popupHtml(feature) {
   </div>`;
 }
 
+function muteFocus(lyr) {
+  lyr.options.keyboard = false;
+  if (typeof lyr.eachLayer === "function") {
+    lyr.eachLayer(muteFocus);
+    return;
+  }
+  const el = lyr.getElement && lyr.getElement();
+  if (!el) return;
+  el.setAttribute("tabindex", "-1");
+  el.style.outline = "none";
+}
+
 function paintLayer() {
   if (!map) return;
   map.closePopup();
@@ -515,6 +547,7 @@ function paintLayer() {
   layer = L.geoJSON(DATA.precincts, {
     style: styleFeature,
     onEachFeature(feature, lyr) {
+      muteFocus(lyr);
       const slot = feature.properties.races[currentId];
       const race = raceById(currentId);
       const leaderId = precinctLeader(slot);
@@ -524,6 +557,7 @@ function paintLayer() {
         { sticky: true }
       );
       lyr.on("click", (e) => {
+        if (e.originalEvent && e.originalEvent.target) e.originalEvent.target.blur();
         selectedPct = feature.properties.precinct;
         layer.setStyle(styleFeature);
         L.popup({
@@ -537,10 +571,11 @@ function paintLayer() {
         }).setLatLng(e.latlng).setContent(popupHtml(feature)).openOn(map);
         renderTable();
       });
-      lyr.on("mouseover", () => lyr.setStyle({ weight: 2.2, color: "#B8860B" }));
+      lyr.on("mouseover", () => lyr.setStyle({ weight: 2, color: "#1B3F5E" }));
       lyr.on("mouseout", () => layer.resetStyle(lyr));
     },
   }).addTo(map);
+  if (layer) layer.eachLayer(muteFocus);
 }
 
 function renderTabs() {
@@ -615,10 +650,10 @@ function renderTable() {
     const active = selectedPct === f.properties.precinct ? " active" : "";
     const place = (f.properties.poll_place || "").split(" - ")[0];
     return `<tr class="${active}" data-pct="${f.properties.precinct}">
-      <td>${f.properties.precinct}</td>
+      <td class="pct-col">${f.properties.precinct}</td>
       <td>${place}<div class="pct-name">${fmt(slot.total)} ballots</div></td>
-      <td class="num"><span class="leader-cell"><span class="leader-swatch" style="background:${leader.color}"></span>${winnerShortName(leader.name)}</span></td>
-      <td class="num">+${fmt(margin)}</td>
+      <td class="leader-col"><span class="leader-cell"><span class="leader-swatch" style="background:${leader.color}"></span>${winnerShortName(leader.name)}</span></td>
+      <td class="margin-col">+${fmt(margin)}</td>
     </tr>`;
   }).join("");
   body.querySelectorAll("tr").forEach((tr) => {
