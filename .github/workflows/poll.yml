@@ -1,0 +1,37 @@
+name: Stuart City Commission Poll
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: stuart-election-poll
+  cancel-in-progress: true
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    env:
+      EA_SITES_ROOT: ${{ github.workspace }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Poll Martin County Clarity results
+        run: bash scripts/poll_results.sh
+
+      - name: Deploy refreshed results to VPS
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          if [ -z "${DEPLOY_SSH_KEY}" ]; then
+            echo "DEPLOY_SSH_KEY not configured; skipping rsync."
+            exit 0
+          fi
+          mkdir -p ~/.ssh
+          echo "${DEPLOY_SSH_KEY}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          rsync -avz \
+            -e "ssh -o StrictHostKeyChecking=no -i ~/.ssh/deploy_key" \
+            data/map_data.json \
+            developer@89.167.13.111:/var/www/electoralanalytics-site/public/projects/stuart-city-commission/data/

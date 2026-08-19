@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stuart City Commission — August 2026 primary</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  :root {
+    --navy: #1B3F5E;
+    --navy-mid: #2C5F8B;
+    --gold: #B8860B;
+    --ink: #2a2a2a;
+    --muted: #5a6470;
+    --paper: #fafafa;
+    --card: #fff;
+    --rule: #e4e8ec;
+    --dem: #1d4ed8;
+    --live: #b45309;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; font-family: Georgia, 'Times New Roman', serif; color: var(--ink); background: var(--paper); }
+  #app { display: grid; grid-template-columns: 380px 1fr; height: 100vh; }
+  #panel {
+    background: var(--card);
+    border-right: 1px solid var(--rule);
+    overflow-y: auto;
+    z-index: 1000;
+  }
+  #map { position: relative; min-height: 0; }
+  .leaflet-container { height: 100%; width: 100%; font-family: 'Segoe UI', system-ui, sans-serif; background: #f3f5f7; }
+
+  .panel-top {
+    background: var(--navy);
+    color: #fff;
+    padding: 18px 20px 16px;
+    border-bottom: 3px solid var(--gold);
+  }
+  .panel-top .kicker {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: #d4c4a0;
+    margin-bottom: 6px;
+  }
+  .panel-top h1 { font-size: 18px; font-weight: 600; line-height: 1.25; }
+  .panel-top .sub { font-size: 12px; color: #cdd8e0; margin-top: 6px; line-height: 1.45; }
+  .panel-time {
+    margin-top: 8px;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-size: 10px;
+    color: #cdd8e0;
+    letter-spacing: 0.03em;
+  }
+  .status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 10px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.12);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-size: 11px;
+  }
+  .status-pill .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--gold);
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.45; }
+  }
+
+  .section { padding: 14px 20px; border-bottom: 1px solid var(--rule); }
+  .section h2 {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--navy-mid);
+    margin-bottom: 10px;
+    font-weight: 700;
+  }
+
+  .office-tabs {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 12px;
+    padding: 4px;
+    border-radius: 10px;
+    background: #f1f5f9;
+    border: 1px solid var(--rule);
+  }
+  .office-tab {
+    flex: 1;
+    min-width: 0;
+    border: none;
+    background: transparent;
+    border-radius: 7px;
+    padding: 8px 6px;
+    cursor: pointer;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.2;
+    color: var(--muted);
+  }
+  .office-tab:hover { color: var(--navy); }
+  .office-tab.active {
+    background: #fff;
+    color: var(--navy);
+    box-shadow: 0 1px 4px rgba(27,63,94,0.12);
+  }
+  .office-tab.called { color: var(--navy); }
+  .office-tab.recount { color: var(--live); }
+
+  .results-lead-row {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 12px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .race-live {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.35;
+  }
+  .race-live strong { color: var(--ink); }
+  .race-pct {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--navy);
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+  .race-call {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: var(--navy);
+    color: #fff;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+  }
+  .race-call::before { content: '✓'; font-size: 10px; color: var(--gold); }
+  .race-call.recount { background: var(--live); }
+  .race-call.recount::before { content: '!'; color: #fff; }
+
+  .result-bar { margin-bottom: 8px; }
+  .result-bar .label {
+    display: flex;
+    justify-content: space-between;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-size: 12px;
+    margin-bottom: 3px;
+  }
+  .result-bar .name { font-weight: 600; }
+  .result-bar .pct { font-variant-numeric: tabular-nums; color: var(--muted); }
+  .bar-track { height: 8px; background: #eef2f6; border-radius: 4px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 4px; }
+
+  .call-status {
+    margin-top: 8px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    background: #f0f6fc;
+    border-left: 3px solid var(--gold);
+    color: var(--navy);
+    font-size: 12px;
+    line-height: 1.45;
+  }
+  .context { font-size: 12px; line-height: 1.55; color: var(--muted); margin-top: 8px; }
+
+  .precinct-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .precinct-table th {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    text-align: left;
+    color: var(--muted);
+    font-weight: 700;
+    padding: 4px 0;
+    border-bottom: 1px solid var(--rule);
+  }
+  .precinct-table td {
+    padding: 6px 0;
+    border-bottom: 1px solid #f0f3f6;
+    vertical-align: top;
+  }
+  .precinct-table .num {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    white-space: nowrap;
+  }
+  .leader-cell {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-weight: 600;
+  }
+  .leader-swatch {
+    width: 10px;
+    height: 10px;
+    flex-shrink: 0;
+    box-shadow: 0 0 0 1px #94a3b8;
+  }
+  .precinct-table tr { cursor: pointer; }
+  .precinct-table tr:hover td { background: #f7fafc; }
+  .precinct-table tr.active td { background: #eef4f8; }
+  .pct-name { color: var(--muted); font-size: 11px; }
+
+  .source-cite {
+    font-size: 11px;
+    color: #333;
+    font-style: italic;
+    line-height: 1.45;
+  }
+  .source-cite a { color: var(--navy-mid); }
+
+  .legend {
+    position: absolute;
+    left: 30px;
+    bottom: 30px;
+    z-index: 500;
+    background: rgba(255,255,255,0.95);
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    padding: 10px 12px;
+    min-width: 160px;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    box-shadow: 0 8px 24px rgba(27,63,94,0.08);
+  }
+  .legend h4 {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    line-height: 1.8;
+  }
+  .legend-swatch {
+    width: 14px;
+    height: 10px;
+    border: 1px solid #fff;
+    box-shadow: 0 0 0 1px #94a3b8;
+    flex-shrink: 0;
+  }
+  .legend-note {
+    margin-top: 6px;
+    font-size: 10px;
+    line-height: 1.4;
+    color: var(--navy);
+  }
+  .legend-note.muted { color: var(--muted); }
+  .legend-item.faint .legend-swatch { opacity: 0.45; }
+
+  .leaflet-popup.ea-map-popup .leaflet-popup-content-wrapper {
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(27,63,94,.16);
+    font-family: Helvetica, Arial, sans-serif;
+    font-size: 11px;
+  }
+  .leaflet-popup.ea-map-popup .leaflet-popup-content { margin: 8px 10px; max-width: 252px; }
+  .map-tip .t-name {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 12px;
+    font-weight: 600;
+    color: #1B3F5E;
+    word-break: break-word;
+  }
+  .map-tip .t-nta { font-size: 10px; color: #777; margin-top: 2px; }
+  .map-tip .t-head { padding-bottom: 6px; margin-bottom: 6px; border-bottom: 1px solid #eef1f4; }
+  .tooltip-head, .tooltip-row {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: 8px;
+    font-variant-numeric: tabular-nums;
+  }
+  .tooltip-head {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    padding-bottom: 4px;
+    border-bottom: 1px solid #e8eef4;
+    margin-bottom: 2px;
+  }
+  .tooltip-row {
+    padding: 3px 0;
+    border-bottom: 1px solid #f0f3f6;
+  }
+  .tooltip-row .votes { color: var(--muted); text-align: right; }
+  .tooltip-row .pct { font-weight: 700; color: var(--navy); text-align: right; min-width: 42px; }
+  .tooltip-row.leader .name { font-weight: 700; color: var(--navy); }
+  .tooltip-row.winner .pct { color: var(--gold); }
+  .popup-note {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 9.5px;
+    font-style: italic;
+    color: #6b7280;
+    margin-top: 6px;
+  }
+
+  @media (max-width: 900px) {
+    #app { grid-template-columns: 1fr; grid-template-rows: auto 1fr; height: 100dvh; }
+    #panel { max-height: 42vh; border-right: none; border-bottom: 1px solid var(--rule); }
+    .legend { left: 8px; bottom: 8px; padding: 6px 8px; max-width: 160px; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <aside id="panel">
+    <div class="panel-top">
+      <div class="kicker">Electoral Analytics</div>
+      <h1>Stuart City Commission</h1>
+      <p class="sub">Unofficial precinct results for the August 18, 2026 primary. Citywide seats, mapped inside the city boundary.</p>
+      <p class="panel-time" id="stamp"></p>
+      <div class="status-pill"><span class="dot"></span><span id="status-text">Loading</span></div>
+    </div>
+    <div class="section">
+      <h2>Select race</h2>
+      <div class="office-tabs" id="tabs"></div>
+      <div id="lead"></div>
+      <div id="bars"></div>
+      <p class="call-status" id="call-status" hidden></p>
+      <p class="context" id="race-note"></p>
+    </div>
+    <div class="section">
+      <h2>Precincts in the city</h2>
+      <table class="precinct-table">
+        <thead>
+          <tr>
+            <th>Pct</th>
+            <th>Place</th>
+            <th class="num">Leader</th>
+            <th class="num">Margin</th>
+          </tr>
+        </thead>
+        <tbody id="precinct-body"></tbody>
+      </table>
+    </div>
+    <div class="section">
+      <p class="source-cite" id="sources"></p>
+    </div>
+  </aside>
+  <div id="map">
+    <div class="legend" id="legend"></div>
+  </div>
+</div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const DATA_URL = "data/map_data.json";
+let DATA = null;
+let currentId = null;
+let layer = null;
+let selectedPct = null;
+let map = null;
+let cityLayer = null;
+let refreshTimer = null;
+
+function cacheBust(url) {
+  return url + (url.includes("?") ? "&" : "?") + "t=" + Date.now();
+}
+
+async function fetchJson(url, bust) {
+  const res = await fetch(bust ? cacheBust(url) : url, bust ? { cache: "no-store" } : undefined);
+  if (!res.ok) throw new Error("Failed to load " + url);
+  return res.json();
+}
+
+function raceById(id) {
+  return DATA.races.find((r) => r.id === id);
+}
+
+function fmt(n) {
+  return Number(n).toLocaleString("en-US");
+}
+
+function pct(part, whole) {
+  if (!whole) return "0.0";
+  return ((100 * part) / whole).toFixed(1);
+}
+
+function winnerShortName(name) {
+  if (!name) return "";
+  const parts = name.trim().split(/\s+/);
+  return parts.length > 1 ? parts[parts.length - 1] : name;
+}
+
+function candidateColor(race, id) {
+  return race.candidates.find((c) => c.id === id)?.color || "#94a3b8";
+}
+
+function precinctLeader(slot) {
+  if (!slot?.votes) return null;
+  const sorted = Object.entries(slot.votes).sort((a, b) => b[1] - a[1]);
+  return sorted[0]?.[1] > 0 ? sorted[0][0] : null;
+}
+
+function precinctColor(slot, race) {
+  const leader = precinctLeader(slot);
+  if (!leader) return "#dbe4ee";
+  return candidateColor(race, leader);
+}
+
+function initMap() {
+  map = L.map("map", { zoomControl: true, scrollWheelZoom: true });
+  map.createPane("labels");
+  map.getPane("labels").style.zIndex = 650;
+  map.getPane("labels").style.pointerEvents = "none";
+  L.tileLayer("https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png", {
+    attribution: "&copy; OpenStreetMap &copy; CARTO",
+    subdomains: "abcd",
+    maxZoom: 19,
+  }).addTo(map);
+  L.tileLayer("https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png", {
+    pane: "labels",
+    opacity: 0.55,
+    subdomains: "abcd",
+    maxZoom: 19,
+  }).addTo(map);
+  L.control.scale({ imperial: true, metric: false }).addTo(map);
+}
+
+function styleFeature(feature) {
+  const race = raceById(currentId);
+  const slot = feature.properties.races[currentId];
+  const active = selectedPct === feature.properties.precinct;
+  const calledWinner = race.calledWinner;
+  const leaderId = precinctLeader(slot);
+  const leaderName = race.candidates.find((c) => c.id === leaderId)?.name;
+  const total = slot?.total || 0;
+  let opacity = 0.18;
+  if (total) {
+    if (total < 25) opacity = 0.42;
+    else if (calledWinner && leaderName === calledWinner) opacity = 0.9;
+    else opacity = 0.82;
+  }
+  return {
+    color: active ? "#B8860B" : "#ffffff",
+    weight: active ? 2.4 : 1.4,
+    fillColor: precinctColor(slot, race),
+    fillOpacity: opacity,
+  };
+}
+
+function popupHtml(feature) {
+  const race = raceById(currentId);
+  const slot = feature.properties.races[currentId];
+  const calledWinner = race.calledWinner;
+  const rows = race.candidates
+    .slice()
+    .sort((a, b) => (slot?.votes[b.id] || 0) - (slot?.votes[a.id] || 0))
+    .map((c) => {
+      const v = slot ? (slot.votes[c.id] || 0) : 0;
+      const classes = ["tooltip-row"];
+      if (c.id === precinctLeader(slot)) classes.push("leader");
+      if (calledWinner && c.name === calledWinner) classes.push("winner");
+      return `<div class="${classes.join(" ")}"><span class="name">${c.name}</span><span class="votes">${fmt(v)}</span><span class="pct">${slot?.total ? pct(v, slot.total) : "0.0"}%</span></div>`;
+    })
+    .join("");
+  const types = slot
+    ? ["election_day", "mail", "early"]
+        .map((k) => {
+          const label = { election_day: "Election Day", mail: "Vote by mail", early: "Early voting" }[k];
+          const n = Object.values(slot.by_type[k] || {}).reduce((a, b) => a + b, 0);
+          return `<div class="tooltip-row"><span class="name">${label}</span><span class="votes">${fmt(n)}</span><span class="pct"></span></div>`;
+        })
+        .join("")
+    : "";
+  return `<div class="map-tip">
+    <div class="t-head">
+      <div class="t-name">Precinct ${feature.properties.precinct}</div>
+      <div class="t-nta">${feature.properties.poll_place || ""}</div>
+    </div>
+    <div class="tooltip-head"><span>Candidate</span><span>Votes</span><span>Share</span></div>
+    ${rows}${types}
+    ${slot && slot.total < 25 ? `<div class="popup-note">Few city ballots in this precinct.</div>` : ""}
+  </div>`;
+}
+
+function paintLayer() {
+  if (!map) return;
+  map.closePopup();
+  if (layer) map.removeLayer(layer);
+  if (cityLayer) map.removeLayer(cityLayer);
+  cityLayer = L.geoJSON(DATA.city, {
+    style: { color: "#1B3F5E", weight: 2, fill: false, dashArray: "4 3" },
+    interactive: false,
+  }).addTo(map);
+  layer = L.geoJSON(DATA.precincts, {
+    style: styleFeature,
+    onEachFeature(feature, lyr) {
+      const slot = feature.properties.races[currentId];
+      const race = raceById(currentId);
+      const leaderId = precinctLeader(slot);
+      const leader = race.candidates.find((c) => c.id === leaderId);
+      lyr.bindTooltip(
+        `Precinct ${feature.properties.precinct} — ${leader ? leader.name : "No votes"}`,
+        { sticky: true }
+      );
+      lyr.on("click", (e) => {
+        selectedPct = feature.properties.precinct;
+        layer.setStyle(styleFeature);
+        L.popup({
+          className: "ea-map-popup",
+          maxWidth: 260,
+          minWidth: 200,
+          closeButton: true,
+          autoClose: true,
+          offset: [0, -6],
+          autoPanPadding: [16, 16],
+        }).setLatLng(e.latlng).setContent(popupHtml(feature)).openOn(map);
+        renderTable();
+      });
+      lyr.on("mouseover", () => lyr.setStyle({ weight: 2.2, color: "#B8860B" }));
+      lyr.on("mouseout", () => layer.resetStyle(lyr));
+    },
+  }).addTo(map);
+}
+
+function renderTabs() {
+  const el = document.getElementById("tabs");
+  el.innerHTML = "";
+  DATA.races.forEach((race) => {
+    const btn = document.createElement("button");
+    btn.className = "office-tab";
+    if (race.id === currentId) btn.classList.add("active");
+    if (race.calledWinner) btn.classList.add("called");
+    if (race.callKind === "recount") btn.classList.add("recount");
+    btn.textContent = race.label;
+    btn.addEventListener("click", () => {
+      currentId = race.id;
+      selectedPct = null;
+      render();
+    });
+    el.appendChild(btn);
+  });
+}
+
+function renderLead() {
+  const race = raceById(currentId);
+  const ranked = [...race.candidates].sort((a, b) => (race.totals[b.id] || 0) - (race.totals[a.id] || 0));
+  const lead = ranked[0];
+  const share = pct(race.totals[lead.id], race.total);
+  const el = document.getElementById("lead");
+  if (race.calledWinner) {
+    el.innerHTML = `<div class="results-lead-row"><span class="race-pct">${share}%</span><div class="race-call">Won by ${winnerShortName(race.calledWinner)}</div></div>`;
+  } else if (race.callKind === "recount") {
+    el.innerHTML = `<div class="results-lead-row"><span class="race-pct">${share}%</span><div class="race-call recount">Recount</div></div>`;
+  } else {
+    el.innerHTML = `<div class="results-lead-row"><span class="race-pct">${share}%</span><div class="race-live"><strong>${lead.name}</strong> · ${fmt(race.totals[lead.id])} · ${race.precincts_reporting} of ${race.precincts_total} precincts</div></div>`;
+  }
+  const note = document.getElementById("race-note");
+  note.textContent = race.id === "group1"
+    ? "Most of the city vote sits in precincts 7 and 8. Precincts 4, 11, and 29 are mostly outside the city and have few city ballots."
+    : "Map shading follows the leading candidate in each precinct.";
+  const callEl = document.getElementById("call-status");
+  if (race.raceCallStatus) {
+    callEl.hidden = false;
+    callEl.textContent = race.raceCallStatus;
+  } else {
+    callEl.hidden = true;
+    callEl.textContent = "";
+  }
+}
+
+function renderBars() {
+  const race = raceById(currentId);
+  document.getElementById("bars").innerHTML = race.candidates.map((c) => {
+    const v = race.totals[c.id] || 0;
+    const p = pct(v, race.total);
+    return `<div class="result-bar">
+      <div class="label"><span class="name">${c.name}</span><span class="pct">${p}% · ${fmt(v)}</span></div>
+      <div class="bar-track"><div class="bar-fill" style="width:${p}%;background:${c.color}"></div></div>
+    </div>`;
+  }).join("");
+}
+
+function renderTable() {
+  const race = raceById(currentId);
+  const body = document.getElementById("precinct-body");
+  const rows = DATA.precincts.features.map((f) => {
+    const slot = f.properties.races[currentId] || { total: 0, votes: {}, winner: null };
+    const ranked = [...race.candidates].sort((a, b) => (slot.votes[b.id] || 0) - (slot.votes[a.id] || 0));
+    const margin = (slot.votes[ranked[0].id] || 0) - (slot.votes[ranked[1].id] || 0);
+    return { f, slot, ranked, margin };
+  }).sort((a, b) => b.slot.total - a.slot.total);
+  body.innerHTML = rows.map(({ f, slot, ranked, margin }) => {
+    const leader = ranked[0];
+    const active = selectedPct === f.properties.precinct ? " active" : "";
+    const place = (f.properties.poll_place || "").split(" - ")[0];
+    return `<tr class="${active}" data-pct="${f.properties.precinct}">
+      <td>${f.properties.precinct}</td>
+      <td>${place}<div class="pct-name">${fmt(slot.total)} ballots</div></td>
+      <td class="num"><span class="leader-cell"><span class="leader-swatch" style="background:${leader.color}"></span>${winnerShortName(leader.name)}</span></td>
+      <td class="num">+${fmt(margin)}</td>
+    </tr>`;
+  }).join("");
+  body.querySelectorAll("tr").forEach((tr) => {
+    tr.addEventListener("click", () => {
+      const pid = tr.getAttribute("data-pct");
+      const featLayer = layer.getLayers().find((l) => l.feature.properties.precinct === pid);
+      if (!featLayer) return;
+      selectedPct = pid;
+      layer.setStyle(styleFeature);
+      map.fitBounds(featLayer.getBounds(), { maxZoom: 15, padding: [24, 24] });
+      L.popup({
+        className: "ea-map-popup",
+        maxWidth: 260,
+        minWidth: 200,
+        closeButton: true,
+        autoClose: true,
+        offset: [0, -6],
+        autoPanPadding: [16, 16],
+      }).setLatLng(featLayer.getBounds().getCenter()).setContent(popupHtml(featLayer.feature)).openOn(map);
+      renderTable();
+    });
+  });
+}
+
+function renderLegend() {
+  const race = raceById(currentId);
+  const el = document.getElementById("legend");
+  const items = race.candidates.map((c) =>
+    `<div class="legend-item"><span class="legend-swatch" style="background:${c.color}"></span>${c.name}</div>`
+  ).join("");
+  const note = race.calledWinner
+    ? `<div class="legend-note">Declared winner: <strong>${race.calledWinner}</strong></div>`
+    : race.callKind === "recount"
+      ? `<div class="legend-note">Automatic recount. Color is the precinct leader.</div>`
+      : `<div class="legend-note muted">Current leader: <strong>${[...race.candidates].sort((a,b)=>(race.totals[b.id]||0)-(race.totals[a.id]||0))[0].name}</strong></div>`;
+  el.innerHTML = `<h4>Precinct leader</h4>${items}<div class="legend-item faint"><span class="legend-swatch" style="background:#94a3b8"></span>City sliver, few ballots</div>${note}`;
+}
+
+function renderMeta() {
+  document.getElementById("stamp").textContent =
+    `Unofficial · ${DATA.meta.timestamp} · ${DATA.meta.election}`;
+  const called = DATA.races.filter((r) => r.calledWinner).length;
+  const recount = DATA.races.filter((r) => r.callKind === "recount").length;
+  let status = "Updating live";
+  if (called) status += ` · ${called} called`;
+  if (recount) status += ` · ${recount} recount`;
+  document.getElementById("status-text").textContent = status;
+  document.getElementById("sources").innerHTML =
+    `Sources: <a href="${DATA.meta.source_results_url}" target="_blank" rel="noopener noreferrer">Martin County Supervisor of Elections, Clarity unofficial detail</a> · Martin County GIS voting districts and City of Stuart boundary · precinct poll places from the Supervisor of Elections precinct map.`;
+}
+
+function render() {
+  renderTabs();
+  renderLead();
+  renderBars();
+  paintLayer();
+  renderTable();
+  renderLegend();
+  renderMeta();
+}
+
+async function refreshResults() {
+  try {
+    const next = await fetchJson(DATA_URL, true);
+    DATA = next;
+    if (!DATA.races.some((r) => r.id === currentId)) {
+      currentId = DATA.races.find((r) => r.focus)?.id || DATA.races[0].id;
+    }
+    render();
+  } catch (err) {
+    console.warn("Results refresh failed", err);
+  }
+}
+
+async function loadAll() {
+  DATA = await fetchJson(DATA_URL, false);
+  currentId = DATA.races.find((r) => r.focus)?.id || DATA.races[0].id;
+  initMap();
+  render();
+  map.fitBounds(L.geoJSON(DATA.city).getBounds(), { padding: [20, 20] });
+  const refreshMs = ((DATA.meta.liveFeed && DATA.meta.liveFeed.refreshSeconds) || 60) * 1000;
+  if (refreshTimer) clearInterval(refreshTimer);
+  refreshTimer = setInterval(refreshResults, refreshMs);
+}
+
+loadAll().catch((err) => {
+  console.error(err);
+  document.getElementById("status-text").textContent = "Failed to load election data";
+});
+</script>
+</body>
+</html>
