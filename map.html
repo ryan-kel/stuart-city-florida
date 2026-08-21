@@ -697,10 +697,13 @@ function renderMeta() {
     `Unofficial · ${DATA.meta.timestamp} · ${DATA.meta.election}`;
   const called = DATA.races.filter((r) => r.calledWinner).length;
   const recount = DATA.races.filter((r) => r.callKind === "recount").length;
-  let status = "Updating live";
+  let status = (DATA.meta.liveFeed && DATA.meta.liveFeed.enabled) ? "Updating live" : "Unofficial";
   if (called) status += ` · ${called} called`;
   if (recount) status += ` · ${recount} recount`;
   document.getElementById("status-text").textContent = status;
+  const pill = document.querySelector(".status-pill .dot");
+  if (pill) pill.style.animation = (DATA.meta.liveFeed && DATA.meta.liveFeed.enabled) ? "" : "none";
+  if (pill && !(DATA.meta.liveFeed && DATA.meta.liveFeed.enabled)) pill.style.opacity = "0.55";
   document.getElementById("sources").innerHTML =
     `Sources: <a href="${DATA.meta.source_results_url}" target="_blank" rel="noopener noreferrer">Martin County Supervisor of Elections, Clarity unofficial detail</a> · Martin County GIS voting districts and City of Stuart boundary · precinct poll places from the Supervisor of Elections precinct map.`;
 }
@@ -736,7 +739,9 @@ async function loadAll() {
   map.fitBounds(L.geoJSON(DATA.city).getBounds(), { padding: [20, 20] });
   const refreshMs = ((DATA.meta.liveFeed && DATA.meta.liveFeed.refreshSeconds) || 60) * 1000;
   if (refreshTimer) clearInterval(refreshTimer);
-  refreshTimer = setInterval(refreshResults, refreshMs);
+  if (DATA.meta.liveFeed && DATA.meta.liveFeed.enabled) {
+    refreshTimer = setInterval(refreshResults, refreshMs);
+  }
 }
 
 loadAll().catch((err) => {

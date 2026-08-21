@@ -348,7 +348,7 @@ def main():
             "source_geometry": "Martin County GIS Voting Districts, clipped to the City of Stuart municipal boundary",
             "source_polls": "Martin County Supervisor of Elections precinct map",
             "unofficial": True,
-            "liveFeed": {"enabled": True, "refreshSeconds": 60},
+            "liveFeed": {"enabled": False, "refreshSeconds": 60},
             "lastBuilt": now_iso,
         },
         "races": [city_races[k] for k in ("group1", "group3", "group5")],
