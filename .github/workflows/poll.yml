@@ -1,7 +1,7 @@
 name: Stuart City Commission Poll
 
-# Election-night refresh. Schedule left off after Aug 18, 2026.
-# Clarity blocks most GitHub runner fetches; use workflow_dispatch only if needed.
+# Do not schedule here. Nightly refresh runs only on electoralanalytics-site
+# (.github/workflows/stuart-poll.yml) so Clarity blocks do not email this repo.
 
 on:
   workflow_dispatch:

@@ -27,7 +27,7 @@ Chrome, fonts, and candidate colors follow the NYC primary tracker (`ny-primary-
 bash scripts/poll_results.sh
 ```
 
-Writes `data/map_data.json`. `map.html` reloads that file every 60 seconds. GitHub Actions polls Clarity every 5 minutes and rsyncs `map_data.json` to the VPS.
+Writes `data/map_data.json`. Open `map.html` from a local server. Nightly Clarity refresh runs on `electoralanalytics-site` only (soft-fail when Clarity blocks runners). This repo’s poll workflow is manual.
 
 ## Eligibility / accuracy rules
 

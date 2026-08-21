@@ -8,7 +8,7 @@ Unofficial precinct map of the August 18, 2026 City of Stuart commission primary
 bash scripts/poll_results.sh
 ```
 
-Open `map.html` from a local server. The page reloads `data/map_data.json` every 60 seconds. The live site file is `primary_map.html`.
+Open `map.html` from a local server. The live site file is `primary_map.html`. Nightly refresh (soft-fail) runs from `electoralanalytics-site`; this repo’s GitHub poll is manual only.
 
 ## Calls
 
