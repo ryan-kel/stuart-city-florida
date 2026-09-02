@@ -452,12 +452,12 @@ function initMap() {
   map.createPane("labels");
   map.getPane("labels").style.zIndex = 650;
   map.getPane("labels").style.pointerEvents = "none";
-  L.tileLayer("https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png", {
+  L.tileLayer("https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png?key=cb1_2949_1_9bd5bcde55f90cb1ce920410", {
     attribution: "&copy; OpenStreetMap &copy; CARTO",
     subdomains: "abcd",
     maxZoom: 19,
   }).addTo(map);
-  L.tileLayer("https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png", {
+  L.tileLayer("https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png?key=cb1_2949_1_9bd5bcde55f90cb1ce920410", {
     pane: "labels",
     opacity: 0.55,
     subdomains: "abcd",
