@@ -1,0 +1,14 @@
+{
+  "election_date": "2026-08-18",
+  "finalized_date": "2026-08-20",
+  "retrieved_date": "2026-10-11",
+  "source": "City of Stuart: Official Election Results",
+  "source_url": "https://www.stuartfl.gov/160/Election-Information",
+  "finalization_source_url": "https://www.stuartfl.gov/CivicSend/ViewMessage/message/298453",
+  "scope": "Citywide totals only; the archived precinct breakdown is unofficial.",
+  "races": {
+    "group1": {"totals": {"rich": 1783, "laughlin": 1764}, "total": 3547, "winner": "rich"},
+    "group3": {"totals": {"matheson": 2087, "ogden": 1500}, "total": 3587, "winner": "matheson"},
+    "group5": {"totals": {"clarke": 1869, "oldenborg": 1153, "micciche": 566}, "total": 3588, "winner": "clarke"}
+  }
+}

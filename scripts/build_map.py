@@ -309,6 +309,39 @@ def apply_call(race, overrides, now_iso):
     race["raceCallStatus"] = f"{leader['name']} apparent winner (Martin County SOE)"
 
 
+def apply_official_results(payload, official):
+    """Attach sourced city totals without rewriting the older precinct record."""
+    if set(official["races"]) != {r["id"] for r in payload["races"]}:
+        raise ValueError("Official results must cover exactly the published races")
+    for race in payload["races"]:
+        result = official["races"][race["id"]]
+        ids = {c["id"] for c in race["candidates"]}
+        votes = result["totals"]
+        if set(votes) != ids or any(type(v) is not int or v < 0 for v in votes.values()):
+            raise ValueError("Official candidate votes are incomplete or invalid")
+        if sum(votes.values()) != result["total"]:
+            raise ValueError("Official votes do not sum to the published total")
+        winner = result["winner"]
+        if winner not in ids or votes[winner] <= max(v for c, v in votes.items() if c != winner):
+            raise ValueError("Official winner does not lead the published result")
+    # Validate all races before changing any data.
+    for race in payload["races"]:
+        result = official["races"][race["id"]]
+        race["official_result"] = result
+        race["calledWinner"] = next(c["name"] for c in race["candidates"] if c["id"] == result["winner"])
+        race["callKind"] = "official"
+        race["calledAt"] = official["finalized_date"]
+        race["callSources"] = [official["source_url"], official["finalization_source_url"]]
+        ranked = sorted(result["totals"].values(), reverse=True)
+        race["raceCallStatus"] = f"{race['calledWinner']} won by {ranked[0] - ranked[1]:,} votes. Official citywide result."
+    payload["meta"].update({
+        "summary_status": "official",
+        "precinct_status": "unofficial",
+        "official_results": {k: v for k, v in official.items() if k != "races"},
+        "liveFeed": {"enabled": False, "refreshSeconds": 60},
+    })
+
+
 def main():
     meta, races = parse_results()
     city, precincts = load_geometry()
@@ -356,17 +389,22 @@ def main():
         "precincts": {"type": "FeatureCollection", "features": features},
     }
 
+    official_path = OUT / "official_results.json"
+    if official_path.exists():
+        apply_official_results(payload, json.loads(official_path.read_text()))
+
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT / "map_data.json").write_text(json.dumps(payload) + "\n")
 
     print(f"timestamp {meta['timestamp']}")
     print(f"clipped precincts {len(features)}")
     for race in payload["races"]:
-        print(f"\n{race['office']} n={race['total']:,}  call={race['callKind']} {race.get('calledWinner') or ''}")
+        result = race.get("official_result", race)
+        print(f"\n{race['office']} n={result['total']:,}  call={race['callKind']} {race.get('calledWinner') or ''}")
         print(f"  {race.get('raceCallStatus')}")
         for cand in race["candidates"]:
-            votes = race["totals"][cand["id"]]
-            pct = 100 * votes / race["total"] if race["total"] else 0
+            votes = result["totals"][cand["id"]]
+            pct = 100 * votes / result["total"] if result["total"] else 0
             print(f"  {cand['name']:<22} {votes:5d}  {pct:5.2f}%")
 
 

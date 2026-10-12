@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Stuart City Commission — August 2026 primary</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
 <style>
   :root {
     --navy: #1B3F5E;
@@ -357,7 +357,7 @@
     <div class="panel-top">
       <div class="kicker">Electoral Analytics</div>
       <h1>Stuart City Commission</h1>
-      <p class="sub">Unofficial precinct results for the August 18, 2026 primary. Citywide seats, mapped inside the city boundary.</p>
+      <p class="sub">Official citywide results and archived unofficial precinct results for the August 18, 2026 primary.</p>
       <p class="panel-time" id="stamp"></p>
       <div class="status-pill"><span class="dot"></span><span id="status-text">Loading</span></div>
     </div>
@@ -365,12 +365,14 @@
       <h2>Select race</h2>
       <div class="office-tabs" id="tabs"></div>
       <div id="lead"></div>
+      <p class="context" id="summary-label"></p>
       <div id="bars"></div>
       <p class="call-status" id="call-status" hidden></p>
       <p class="context" id="race-note"></p>
     </div>
     <div class="section">
       <h2>Precincts in the city</h2>
+      <p class="context" id="precinct-note"></p>
       <table class="precinct-table">
         <thead>
           <tr>
@@ -391,9 +393,9 @@
     <div class="legend" id="legend"></div>
   </div>
 </div>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script>
-const DATA_URL = "data/map_data.json";
+const DATA_URL = "data/map_data.json?revision=2026-10-11-official";
 let DATA = null;
 let currentId = null;
 let layer = null;
@@ -515,6 +517,7 @@ function popupHtml(feature) {
   return `<div class="map-tip">
     <div class="t-head">
       <div class="t-name">Precinct ${feature.properties.precinct}</div>
+      <div class="t-nta">Unofficial election-night count · August 18</div>
       <div class="t-nta">${feature.properties.poll_place || ""}</div>
     </div>
     <div class="tooltip-head"><span>Candidate</span><span>Votes</span><span>Share</span></div>
@@ -599,9 +602,10 @@ function renderTabs() {
 
 function renderLead() {
   const race = raceById(currentId);
-  const ranked = [...race.candidates].sort((a, b) => (race.totals[b.id] || 0) - (race.totals[a.id] || 0));
+  const result = race.official_result || race;
+  const ranked = [...race.candidates].sort((a, b) => (result.totals[b.id] || 0) - (result.totals[a.id] || 0));
   const lead = ranked[0];
-  const share = pct(race.totals[lead.id], race.total);
+  const share = pct(result.totals[lead.id], result.total);
   const el = document.getElementById("lead");
   if (race.calledWinner) {
     el.innerHTML = `<div class="results-lead-row"><span class="race-pct">${share}%</span><div class="race-call">Won by ${winnerShortName(race.calledWinner)}</div></div>`;
@@ -626,9 +630,13 @@ function renderLead() {
 
 function renderBars() {
   const race = raceById(currentId);
+  const result = race.official_result || race;
+  document.getElementById("summary-label").textContent = race.official_result
+    ? `Official citywide result · ${fmt(result.total)} votes`
+    : `Unofficial citywide result · ${fmt(result.total)} votes`;
   document.getElementById("bars").innerHTML = race.candidates.map((c) => {
-    const v = race.totals[c.id] || 0;
-    const p = pct(v, race.total);
+    const v = result.totals[c.id] || 0;
+    const p = pct(v, result.total);
     return `<div class="result-bar">
       <div class="label"><span class="name">${c.name}</span><span class="pct">${p}% · ${fmt(v)}</span></div>
       <div class="bar-track"><div class="bar-fill" style="width:${p}%;background:${c.color}"></div></div>
@@ -693,19 +701,20 @@ function renderLegend() {
 }
 
 function renderMeta() {
-  document.getElementById("stamp").textContent =
-    `Unofficial · ${DATA.meta.timestamp} · ${DATA.meta.election}`;
-  const called = DATA.races.filter((r) => r.calledWinner).length;
-  const recount = DATA.races.filter((r) => r.callKind === "recount").length;
-  let status = (DATA.meta.liveFeed && DATA.meta.liveFeed.enabled) ? "Updating live" : "Unofficial";
-  if (called) status += ` · ${called} called`;
-  if (recount) status += ` · ${recount} recount`;
-  document.getElementById("status-text").textContent = status;
+  const official = DATA.meta.official_results;
+  const race = raceById(currentId);
+  document.getElementById("stamp").textContent = official
+    ? `Citywide results finalized August 20, 2026 · Precinct snapshot: ${DATA.meta.timestamp}`
+    : `Unofficial · ${DATA.meta.timestamp} · ${DATA.meta.election}`;
+  document.getElementById("status-text").textContent = official ? "Official citywide results" : "Unofficial";
+  document.getElementById("precinct-note").textContent =
+    `The map and table retain the August 18 unofficial count: ${fmt(race.total)} votes.` +
+    (race.official_result ? ` The final citywide total is ${fmt(race.official_result.total)}. A final precinct allocation has not been verified.` : "");
   const pill = document.querySelector(".status-pill .dot");
-  if (pill) pill.style.animation = (DATA.meta.liveFeed && DATA.meta.liveFeed.enabled) ? "" : "none";
-  if (pill && !(DATA.meta.liveFeed && DATA.meta.liveFeed.enabled)) pill.style.opacity = "0.55";
+  if (pill) { pill.style.animation = "none"; pill.style.opacity = "0.55"; }
   document.getElementById("sources").innerHTML =
-    `Sources: <a href="${DATA.meta.source_results_url}" target="_blank" rel="noopener noreferrer">Martin County Supervisor of Elections, Clarity unofficial detail</a> · Martin County GIS voting districts and City of Stuart boundary · precinct poll places from the Supervisor of Elections precinct map.`;
+    (official ? `Citywide totals: <a href="${official.source_url}" target="_blank" rel="noopener noreferrer">City of Stuart official results</a> · <a href="${official.finalization_source_url}" target="_blank" rel="noopener noreferrer">August 20 finalization</a>. ` : "") +
+    `Precinct votes: <a href="${DATA.meta.source_results_url}" target="_blank" rel="noopener noreferrer">Martin County Supervisor of Elections, Clarity unofficial detail</a>. Boundaries: Martin County GIS; polling places: Supervisor of Elections.`;
 }
 
 function render() {
